@@ -14,6 +14,7 @@ def _http_target(config: dict):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
             body = config.get("body", "<html><body>ordinary site</body></html>")
             if parsed.path == "/version" and config.get("dashboard"):
                 body = '{"major":"1","gitVersion":"v1.30.0"}'
@@ -22,13 +23,35 @@ def _http_target(config: dict):
             elif parsed.path == "/openapi.json" and config.get("openapi"):
                 body = config["openapi"]
             if config.get("reflect"):
-                marker = parse_qs(parsed.query).get("cygnus_probe", [""])[0]
+                marker = query.get("cygnus_probe", [""])[0]
                 body += marker
-            self.send_response(200)
+            # Verbose error disclosure simulation
+            if config.get("error_disclosure"):
+                body += "\nTraceback (most recent call last):\n  File \"/var/www/app/views.py\", line 42, in get\n    raise Exception('database error')\nException: database error\n"
+            # Open redirect simulation
+            redirect_target = None
+            if config.get("open_redirect"):
+                for param in ("next", "redirect", "url", "return", "returnUrl", "redirect_uri", "continue", "dest", "destination"):
+                    vals = query.get(param)
+                    if vals:
+                        redirect_target = vals[0]
+                        break
+            status_code = 302 if redirect_target else 200
+            self.send_response(status_code)
             for key, value in config.get("headers", {}).items():
                 self.send_header(key, value)
             if config.get("cors") and self.headers.get("Origin"):
                 self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
+            # Session cookie simulation
+            if config.get("session_cookie"):
+                # Vulnerable cookie missing Secure/HttpOnly/SameSite by default, unless "secure_cookie" is set
+                if config.get("secure_cookie"):
+                    self.send_header("Set-Cookie", "sessionid=secure123; Path=/; Secure; HttpOnly; SameSite=Strict")
+                else:
+                    self.send_header("Set-Cookie", "sessionid=abc123; Path=/")
+            if redirect_target:
+                self.send_header("Location", redirect_target)
+                body = f"<html><body>Redirecting to {redirect_target}</body></html>" + body
             self.send_header("Content-Type", "application/json" if parsed.path == "/version" else "text/html")
             self.end_headers()
             self.wfile.write(body.encode())
