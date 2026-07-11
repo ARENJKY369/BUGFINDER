@@ -12,8 +12,7 @@ class AuthorizationError(RuntimeError):
 
 class Scope:
     def __init__(self, entries: list[str]):
-        # Preserve local-path case; domain comparisons are normalized in permits().
-        self.entries = [line.strip() for line in entries if line.strip() and not line.lstrip().startswith("#")]
+        self.entries = [line.strip().lower() for line in entries if line.strip() and not line.lstrip().startswith("#")]
         if not self.entries:
             raise AuthorizationError("scope allowlist is empty")
 
@@ -37,14 +36,13 @@ class Scope:
         except ValueError:
             address = None
         for entry in self.entries:
-            normalized = entry.lower()
-            clean = normalized.removeprefix("*.").rstrip(".")
+            clean = entry.removeprefix("*.").rstrip(".")
             try:
                 if address is not None and address in ipaddress.ip_network(clean, strict=False):
                     return True
             except ValueError:
                 pass
-            if host == clean or (normalized.startswith("*.") and host.endswith("." + clean)):
+            if host == clean or (entry.startswith("*.") and host.endswith("." + clean)):
                 return True
         return False
 

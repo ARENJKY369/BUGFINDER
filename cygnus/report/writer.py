@@ -16,7 +16,7 @@ def _finding(index: int, finding: Finding) -> str:
         cve = f" / CVE: {finding.cve['id']} ({finding.cve['source']}; cache updated {finding.cve['dataset_updated']})"
     return (
         f"Finding {index}: {finding.name} — {finding.asset_type.value} / {finding.severity} / {finding.confidence}\n"
-        f"- Observed At: {finding.observed_at}\n- Component: {finding.component}\n- Evidence: {evidence}{cve}\n"
+        f"- Component: {finding.component}\n- Evidence: {evidence}{cve}\n"
         f"- Root Cause: {finding.root_cause}\n- Exploitation Vector: {finding.exploitation_vector}\n"
         f"- Remediation: {finding.remediation}\n"
     )
@@ -33,8 +33,7 @@ def to_markdown(report: ScanReport) -> str:
         "### 🛠️ SCAN STATUS REPORT", "", f"- Mode: {report.mode.value}",
         f"- Target(s) + detected asset type(s) + confidence: {report.profile.target} — {profile}",
         f"- Authorization confirmed: Yes — {report.authorization_reference}",
-        f"- Modules loaded vs skipped: {ran} ran / {skipped} skipped / {errors} errors / {len(report.module_results)} discovered",
-        f"- Final schema validation: {len(report.discarded_findings)} finding(s) discarded", "",
+        f"- Modules loaded vs skipped: {ran} ran / {skipped} skipped / {errors} errors / {len(report.module_results)} discovered", "",
         "### 🚨 CONFIRMED FINDINGS (evidence-backed only)", "", f"Confirmed severity totals — {total}", "",
     ]
     if report.confirmed:

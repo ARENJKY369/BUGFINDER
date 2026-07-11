@@ -1,9 +1,7 @@
-"""Concurrent orchestration, fail-closed validation, scoring, and explicit chain rules."""
+"""Orchestration, evidence validation, scoring, and explicit chain rules."""
 from __future__ import annotations
 
-import asyncio
 import hashlib
-from datetime import datetime, timezone
 
 from .models import Finding, FindingCandidate, Mode, ModuleResult, ScanContext, ScanReport
 from .plugin import discover_modules
@@ -23,42 +21,32 @@ class ScanEngine:
         self.modules = modules if modules is not None else discover_modules()
 
     async def run(self, profile, ctx: ScanContext) -> ScanReport:
-        # Every module gets an independent coroutine. asyncio.gather preserves plugin
-        # order while allowing unrelated live protocol checks to overlap safely.
-        results = await asyncio.gather(*(self._execute(module, profile, ctx) for module in self.modules))
-        candidates = [candidate for result in results for candidate in result.findings]
-        findings: list[Finding] = []
-        discarded: list[str] = []
-        for index, candidate in enumerate(candidates, 1):
-            finding = self._score(candidate, ctx.mode, index)
-            reason = self._validation_error(finding, profile)
-            if reason:
-                discarded.append(f"{finding.id}: {reason}")
-            else:
-                findings.append(finding)
+        results: list[ModuleResult] = []
+        candidates: list[FindingCandidate] = []
+        for module in self.modules:
+            intersection = profile.types & module.applies_to
+            if not intersection:
+                results.append(ModuleResult(module.name, "skipped", "not applicable to detected asset types"))
+                continue
+            if module.requires_active and not ctx.active:
+                results.append(ModuleResult(module.name, "skipped", "active authorization not supplied"))
+                continue
+            if ctx.mode == Mode.OFFLINE_STATIC and not getattr(module, "supports_offline", False):
+                results.append(ModuleResult(module.name, "skipped", "live protocol unavailable in OFFLINE-STATIC mode"))
+                continue
+            try:
+                found = await module.run(profile, ctx)
+                valid = [item for item in found if item.evidence and all(ev.captured.strip() for ev in item.evidence)]
+                results.append(ModuleResult(module.name, "ran", f"completed with {len(valid)} evidence-backed candidate(s)", valid))
+                candidates.extend(valid)
+            except Exception as exc:
+                results.append(ModuleResult(module.name, "error", f"{type(exc).__name__}: {str(exc)[:240]}"))
+
+        findings = [self._score(candidate, ctx.mode, index) for index, candidate in enumerate(candidates, 1)]
         confirmed = [item for item in findings if item.status == "CONFIRMED"]
         manual = [item for item in findings if item.status != "CONFIRMED"]
         chains = self._chains(confirmed)
-        return ScanReport(ctx.mode, profile, ctx.authorization_reference, results, confirmed, manual, chains,
-                          self._next_steps(confirmed, manual, results), discarded)
-
-    @staticmethod
-    async def _execute(module, profile, ctx: ScanContext) -> ModuleResult:
-        intersection = profile.types & module.applies_to
-        if not intersection:
-            return ModuleResult(module.name, "skipped", "not applicable to detected asset types")
-        if module.requires_active and not ctx.active:
-            return ModuleResult(module.name, "skipped", "active authorization not supplied")
-        if ctx.mode == Mode.OFFLINE_STATIC and not getattr(module, "supports_offline", False):
-            return ModuleResult(module.name, "skipped", "live protocol unavailable in OFFLINE-STATIC mode")
-        try:
-            found = await module.run(profile, ctx)
-            valid = [item for item in found if item.evidence and all(ev.captured.strip() for ev in item.evidence)]
-            dropped = len(found) - len(valid)
-            suffix = f"; discarded {dropped} evidence-free candidate(s)" if dropped else ""
-            return ModuleResult(module.name, "ran", f"completed with {len(valid)} evidence-backed candidate(s){suffix}", valid)
-        except Exception as exc:
-            return ModuleResult(module.name, "error", f"{type(exc).__name__}: {str(exc)[:240]}")
+        return ScanReport(ctx.mode, profile, ctx.authorization_reference, results, confirmed, manual, chains, self._next_steps(confirmed, manual, results))
 
     @staticmethod
     def _score(candidate: FindingCandidate, mode: Mode, index: int) -> Finding:
@@ -75,25 +63,9 @@ class ScanEngine:
         digest = hashlib.sha256((candidate.name + candidate.component + candidate.evidence[0].captured).encode()).hexdigest()[:10]
         return Finding(
             f"CYG-{digest}", candidate.name, candidate.asset_type, severity, confidence, status,
-            datetime.now(timezone.utc).isoformat(), candidate.component, candidate.evidence,
-            candidate.root_cause, candidate.exploitation_vector, candidate.remediation, candidate.cve, candidate.tags,
+            candidate.component, candidate.evidence, candidate.root_cause, candidate.exploitation_vector,
+            candidate.remediation, candidate.cve, candidate.tags,
         )
-
-    @staticmethod
-    def _validation_error(finding: Finding, profile) -> str | None:
-        if not finding.evidence or any(not evidence.captured.strip() for evidence in finding.evidence):
-            return "missing non-empty captured evidence"
-        try:
-            observed = datetime.fromisoformat(finding.observed_at)
-            if observed.tzinfo is None:
-                return "observation timestamp has no timezone"
-        except (TypeError, ValueError):
-            return "invalid observation timestamp"
-        if finding.asset_type not in profile.types:
-            return f"asset type {finding.asset_type.value} absent from fingerprint profile"
-        if finding.status not in {"CONFIRMED", "NEEDS MANUAL VERIFICATION", "STATIC/UNCONFIRMED"}:
-            return "invalid finding status"
-        return None
 
     @staticmethod
     def _chains(confirmed: list[Finding]) -> list[dict]:

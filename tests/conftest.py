@@ -17,10 +17,6 @@ def _http_target(config: dict):
             body = config.get("body", "<html><body>ordinary site</body></html>")
             if parsed.path == "/version" and config.get("dashboard"):
                 body = '{"major":"1","gitVersion":"v1.30.0"}'
-            elif parsed.path == "/.well-known/openid-configuration" and config.get("openid"):
-                body = config["openid"]
-            elif parsed.path == "/openapi.json" and config.get("openapi"):
-                body = config["openapi"]
             if config.get("reflect"):
                 marker = parse_qs(parsed.query).get("cygnus_probe", [""])[0]
                 body += marker
@@ -30,16 +26,6 @@ def _http_target(config: dict):
             if config.get("cors") and self.headers.get("Origin"):
                 self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
             self.send_header("Content-Type", "application/json" if parsed.path == "/version" else "text/html")
-            self.end_headers()
-            self.wfile.write(body.encode())
-
-        def do_POST(self):
-            parsed = urlparse(self.path)
-            length = int(self.headers.get("Content-Length", "0"))
-            self.rfile.read(length)
-            body = '{"data":{"__schema":{"queryType":{"name":"Query"}}}}' if config.get("graphql") and parsed.path == "/graphql" else '{"errors":[{"message":"not found"}]}'
-            self.send_response(200 if config.get("graphql") else 404)
-            self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(body.encode())
 
