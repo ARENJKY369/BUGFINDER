@@ -103,15 +103,32 @@ example.com
 
 The target host must match an entry in the scope file. For example, scanning `https://api.example.com` requires either `api.example.com` or a matching wildcard entry in scope.
 
-## Basic command structure
+## What is an authorization reference?
 
-Use Python's module runner for a consistent command on Linux, macOS, and Windows:
+An authorization reference is **your record of permission**, not a value supplied by CYGNUS or its developers. It helps identify why you are allowed to scan the target. Examples include:
+
+- A bug-bounty program name or public program URL
+- An internal security ticket such as `SEC-1234`
+- A penetration-test statement-of-work identifier
+- A written approval or change-request identifier
+
+Do not place passwords, API keys, access tokens, or other secrets in this field.
+
+You may omit the authorization flags from an interactive command. CYGNUS will then ask whether you have permission and prompt for the reference before making network requests. The reference itself cannot be bypassed because it is part of the mandatory audit trail.
+
+## Basic interactive usage
+
+The simplest command requires only the target and scope file:
 
 ```bash
-python -m cygnus.cli.main TARGET \
-  --scope scope.txt \
-  --authorized \
-  --authorization-ref 'YOUR-PERMISSION-REFERENCE'
+python -m cygnus.cli.main TARGET --scope scope.txt
+```
+
+CYGNUS will display prompts similar to:
+
+```text
+Authorization gate: do you have explicit permission for TARGET? Type 'yes': yes
+Authorization/scope reference: SEC-1234
 ```
 
 The package also installs a shorter `cygnus` command, but all examples below use `python -m cygnus.cli.main` so the invocation is explicit and easy to troubleshoot.
@@ -123,10 +140,7 @@ The package also installs a shorter `cygnus` command, but all examples below use
 CYGNUS fingerprints the target first, then runs only the modules applicable to the detected asset types. Manual `-m` module selection is not required.
 
 ```bash
-python -m cygnus.cli.main https://example.com \
-  --scope scope.txt \
-  --authorized \
-  --authorization-ref 'H1-PROGRAM-2026'
+python -m cygnus.cli.main https://example.com --scope scope.txt
 ```
 
 ### API target scan
@@ -136,8 +150,6 @@ After adding the API to the scope file, pass it as a normal target. REST, GraphQ
 ```bash
 python -m cygnus.cli.main https://api.example.com \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'H1-API-SCOPE-2026' \
   --output api-report.md
 ```
 
@@ -148,8 +160,6 @@ The current CLI does not have a separate `-m recon` switch. The default scan is 
 ```bash
 python -m cygnus.cli.main example.com \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'RECON-AUTH-2026' \
   --timeout 5
 ```
 
@@ -160,8 +170,6 @@ Markdown is the default report format:
 ```bash
 python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'TICKET-1001' \
   --format markdown \
   --output report.md
 ```
@@ -171,8 +179,6 @@ python -m cygnus.cli.main https://example.com \
 ```bash
 python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'TICKET-1001' \
   --format json \
   --output report.json
 ```
@@ -186,39 +192,50 @@ Add the authorized local repository path to `scope.txt`, then pass the same path
 ```bash
 python -m cygnus.cli.main /home/operator/authorized-repo \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'INTERNAL-42' \
   --repository-path /home/operator/authorized-repo \
   --output repository-report.md
 ```
 
-Local source findings appear in the `STATIC/UNCONFIRMED` section and are excluded from confirmed severity totals.
+Local source findings appear in the `STATIC/UNCONFIRMED` section and are excluded from confirmed severity totals. The interactive authorization prompt still appears for local scans.
 
-### Explicit active-mode authorization
+### Non-interactive or CI usage
 
-Checks are passive by default. Enabling active modules requires a separate active confirmation in addition to normal authorization:
+CI cannot answer interactive prompts, so it must provide the confirmation and reference explicitly:
 
 ```bash
 python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
-  --authorization-ref 'TICKET-1' \
-  --active \
-  --active-authorized \
-  --active-authorization-ref 'TICKET-1-ACTIVE'
+  --authorization-ref 'SEC-1234' \
+  --format json \
+  --output report.json
 ```
 
-The scan is blocked if `--active` is provided without `--active-authorized`.
+Replace `SEC-1234` with your real program, ticket, or written-approval reference.
 
-### Interactive authorization
+### Explicit active-mode authorization
 
-In an interactive terminal, you may omit `--authorized` and `--authorization-ref`:
+Checks are passive by default. Enabling active modules requires a separate active confirmation in addition to normal authorization. In an interactive terminal, use:
 
 ```bash
-python -m cygnus.cli.main https://example.com --scope scope.txt
+python -m cygnus.cli.main https://example.com \
+  --scope scope.txt \
+  --active
 ```
 
-CYGNUS prints its banner and requests confirmation and a scope reference at the authorization gate. Use explicit flags in CI/CD or other non-interactive environments.
+CYGNUS asks for the normal authorization reference and a second `ACTIVE-AUTHORIZED` confirmation. For non-interactive automation, all active authorization flags must be explicit:
+
+```bash
+python -m cygnus.cli.main https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'SEC-1234' \
+  --active \
+  --active-authorized \
+  --active-authorization-ref 'SEC-1234-ACTIVE'
+```
+
+The scan is blocked if the normal authorization/reference or separate active confirmation is missing.
 
 ### View supported options and asset types
 
