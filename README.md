@@ -44,20 +44,52 @@ operator / CLI
 
 A plugin is a class in `cygnus/modules/<category>/checks.py` exposing `name`, `applies_to`, `requires_active`, and async `run(profile, context)`. Discovery is automatic; adding a folder does not change the engine or report schema.
 
-## Install
+## Installation
 
-Python 3.11 or newer is required.
+CYGNUS ke liye **Python 3.11 ya newer** required hai. Pehle repository clone/download karke project directory mein enter karein.
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
+git clone https://github.com/ARENJKY369/BUGFINDER.git
+cd BUGFINDER
+```
+
+### Linux / macOS
+
+Virtual environment create aur activate karein:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### Windows PowerShell
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+Project aur test dependencies install karein:
+
+```bash
+python -m pip install --upgrade pip
 pip install -e '.[test]'
+```
+
+Installation verify karne ke liye:
+
+```bash
+cygnus --help
 pytest
 ```
 
-## Scope and usage
+`pip install -e '.[test]'` CYGNUS ko editable mode mein install karta hai aur `cygnus` terminal command available banata hai. Virtual environment dobara use karte waqt dependencies reinstall karne ki zarurat nahi hai—sirf `.venv` activate karein.
 
-One allowlist item per line; blank lines and `#` comments are ignored. Exact domains, wildcard subdomains, IP addresses, CIDRs, and local paths are accepted.
+## Authorization aur scope setup
+
+> CYGNUS ko sirf owned asset, in-scope bug-bounty target, ya written permission wale target par run karein. Har scan ke liye authorization reference aur scope allowlist required hai.
+
+Project directory mein `scope.txt` banayein. Har line par ek authorized asset likhein. Blank lines aur `#` comments ignore hote hain. Exact domains, wildcard subdomains, IP addresses, CIDRs, aur local repository paths supported hain.
 
 ```text
 # scope.txt
@@ -67,29 +99,159 @@ example.com
 /home/operator/authorized-repo
 ```
 
-Non-interactive passive scan:
+Target ka host scope file se match hona chahiye. Example: `https://api.example.com` scan karna hai to `api.example.com` ya applicable wildcard scope mein hona chahiye.
+
+## Basic command structure
+
+```bash
+cygnus TARGET \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE'
+```
+
+Same CLI ko Python module ke through bhi run kar sakte hain:
+
+```bash
+python -m cygnus.cli.main TARGET \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE'
+```
+
+Installed `cygnus` command recommended aur shorter form hai.
+
+## Usage examples
+
+### Full asset-aware passive scan
+
+CYGNUS pehle target fingerprint karta hai, phir sirf detected asset types ke applicable modules run karta hai. Manual `-m` module selection required nahi hai.
 
 ```bash
 cygnus https://example.com \
   --scope scope.txt \
   --authorized \
-  --authorization-ref 'H1-PROGRAM-2026' \
+  --authorization-ref 'H1-PROGRAM-2026'
+```
+
+### API target scan
+
+API ko scope file mein allowlist karne ke baad normal target ki tarah pass karein. REST, GraphQL, API-documentation, authentication, aur web checks fingerprint evidence ke basis par automatically select ya skip honge.
+
+```bash
+cygnus https://api.example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'H1-API-SCOPE-2026' \
+  --output api-report.md
+```
+
+### Domain or reconnaissance-oriented passive scan
+
+Current CLI mein separate `-m recon` switch nahi hai. Default scan already passive/detection-only hai aur DNS, TCP/banner, TLS, HTTP, aur asset fingerprinting se start hota hai.
+
+```bash
+cygnus example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'RECON-AUTH-2026' \
+  --timeout 5
+```
+
+### Markdown report save karna
+
+Markdown default report format hai:
+
+```bash
+cygnus https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'TICKET-1001' \
+  --format markdown \
   --output report.md
 ```
 
-Interactive terminals may omit `--authorized` and the reference; CYGNUS prints its banner and asks at the gate. CI should pass explicit flags. JSON output is available with `--format json`. An operator-provided repository can be inspected without network access:
+### JSON report save karna
 
 ```bash
-cygnus /home/operator/authorized-repo --scope scope.txt --authorized \
-  --authorization-ref INTERNAL-42 --repository-path /home/operator/authorized-repo
+cygnus https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'TICKET-1001' \
+  --format json \
+  --output report.json
 ```
 
-The second active gate is deliberately separate:
+Current version Markdown aur JSON support karta hai. `--format html` aur `--depth aggressive` abhi implemented options nahi hain; README intentionally unsupported commands advertise nahi karta.
+
+### Offline/local repository scan
+
+Authorized local repository path ko `scope.txt` mein bhi add karein, phir target aur `--repository-path` dono mein wahi path pass karein:
 
 ```bash
-cygnus https://example.com --scope scope.txt --authorized --authorization-ref TICKET-1 \
-  --active --active-authorized --active-authorization-ref TICKET-1-ACTIVE
+cygnus /home/operator/authorized-repo \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'INTERNAL-42' \
+  --repository-path /home/operator/authorized-repo \
+  --output repository-report.md
 ```
+
+Local source findings `STATIC/UNCONFIRMED` section mein jaate hain aur confirmed severity totals mein count nahi hote.
+
+### Explicit active-mode authorization
+
+Default checks passive hain. Active modules enable karne ke liye normal authorization ke alawa separate active confirmation required hai:
+
+```bash
+cygnus https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'TICKET-1' \
+  --active \
+  --active-authorized \
+  --active-authorization-ref 'TICKET-1-ACTIVE'
+```
+
+`--active` ko `--active-authorized` ke bina pass karne par scan block ho jayega.
+
+### Interactive authorization
+
+Interactive terminal mein `--authorized` aur `--authorization-ref` omit kar sakte hain:
+
+```bash
+cygnus https://example.com --scope scope.txt
+```
+
+CYGNUS banner print karke authorization gate par confirmation aur scope reference poochega. CI/CD ya non-interactive environment mein explicit flags use karein.
+
+### Supported options aur asset types dekhna
+
+```bash
+cygnus --help
+```
+
+Current CLI mein `--list-assets` option nahi hai. Supported asset types `cygnus/core/models.py` ke `AssetType` enum mein defined hain, aur detection automatically hoti hai—asset type ko operator manually force nahi karta.
+
+## Important command differences
+
+Neeche wale example flags current CYGNUS CLI ka part **nahi** hain:
+
+```text
+-m api
+-m recon
+--depth aggressive
+--format html
+--list-assets
+```
+
+Inke current equivalents hain:
+
+- **API scan:** API URL ko normal target ke roop mein pass karein; modules auto-select honge.
+- **Recon:** default passive scan fingerprinting se start hota hai.
+- **Aggressive mode:** intentionally available nahi; gated active checks ke liye `--active` plus second confirmation use hoti hai.
+- **HTML report:** Markdown ya JSON generate karke trusted external renderer use karein.
+- **Asset list:** `AssetType` enum dekhein; runtime par detected types report header mein show hote hain.
 
 ## Implemented verification categories
 
