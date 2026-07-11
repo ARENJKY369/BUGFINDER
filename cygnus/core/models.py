@@ -171,7 +171,6 @@ class ScanContext:
     timeout: float = 3.0
     credentials: dict[str, str] = field(default_factory=dict)
     repository_path: str | None = None
-    min_severity: str | None = None
 
 
 @dataclass(slots=True)
