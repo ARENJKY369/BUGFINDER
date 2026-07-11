@@ -30,11 +30,15 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--audit-log",default=".cygnus/audit.jsonl")
     command.add_argument("--timeout",type=float,default=3.0)
     command.add_argument("--repository-path",help="operator-provided local repository for static secret patterns")
-    command.add_argument("--format",choices=("markdown","json"),default="markdown")
-    command.add_argument("--output","-o")
+    command.add_argument("--format",choices=("markdown","json"),default="markdown",help="output format for reports and catalog listings")
+    command.add_argument("--output","-o",help="write report to file instead of stdout")
     command.add_argument("--recon","--profile-only",action="store_true",dest="profile_only",help="fingerprint only; do not run vulnerability modules")
     command.add_argument("--list-assets",action="store_true",help="list recognized asset types and exit")
     command.add_argument("--list-modules",action="store_true",help="list discovered check plugins and exit")
+    command.add_argument("--list-vulnerabilities",action="store_true",help="list vulnerability catalog entries and exit")
+    command.add_argument("--vuln-status",choices=("implemented","manual","catalog-only","all"),default="all",help="filter vulnerability catalog by implementation status")
+    command.add_argument("--severity",choices=("Informational","Low","Medium","High","Critical"),help="minimum severity threshold for findings and catalog listing")
+    command.add_argument("--vuln-search",metavar="TERM",help="search vulnerability catalog by name, tag, CWE, or OWASP")
     command.add_argument("--init-scope",metavar="FILE",help="create an allowlist containing the supplied target, then exit")
     command.add_argument("--version",action="version",version=f"CYGNUS {__version__}")
     return command
@@ -50,11 +54,96 @@ def _resolve_target(args, command: argparse.ArgumentParser) -> None:
 
 def _utility(args) -> bool:
     if args.list_assets:
-        print("\n".join(f"{item.name:<24} {item.value}" for item in AssetType)); return True
+        print("CYGNUS Asset Taxonomy\n" + "="*60)
+        print(f"{'Enum Name':<24} {'Display Name':<30} {'Category'}")
+        print("-"*70)
+        for item in AssetType:
+            category = "Network" if "Server" in item.value or "Service" in item.value else \
+                       "Web" if "Web" in item.value or "API" in item.value else \
+                       "Cloud" if "Cloud" in item.value or "Kubernetes" in item.value or "Docker" in item.value else "General"
+            print(f"{item.name:<24} {item.value:<30} {category}")
+        print(f"\nTotal: {len(list(AssetType))} asset types recognized")
+        return True
     if args.list_modules:
-        for module in discover_modules():
-            assets=", ".join(sorted(item.value for item in module.applies_to))
-            print(f"{module.name:<38} {assets}")
+        modules = discover_modules()
+        print(f"CYGNUS Discovered Check Modules ({len(modules)})\n" + "="*70)
+        print(f"{'Module':<40} {'Asset Types':<25} {'Active?'}")
+        print("-"*80)
+        for module in modules:
+            assets=", ".join(sorted(item.value for item in module.applies_to))[:60]
+            active = "YES" if getattr(module, "requires_active", False) else "no"
+            print(f"{module.name:<40} {assets:<60} {active}")
+        print(f"\nTip: use --list-vulnerabilities to see the full 98-family catalog")
+        return True
+    if args.list_vulnerabilities:
+        from cygnus.modules.vulnerability_catalog import filter_by_severity, count_by_status, count_by_severity, get_catalog
+        # Start with severity filter
+        entries = filter_by_severity(args.severity)
+        # Apply status filter
+        if getattr(args, "vuln_status", "all") != "all":
+            entries = [e for e in entries if e.status == args.vuln_status]
+        # Apply search filter
+        search_term = getattr(args, "vuln_search", None)
+        if search_term:
+            st = search_term.lower()
+            def matches(e):
+                return st in e.name.lower() or st in e.id.lower() or st in e.cwe.lower() or st in e.owasp.lower() or any(st in tag for tag in e.tags) or st in e.category.lower()
+            entries = [e for e in entries if matches(e)]
+        # JSON output mode
+        if args.format == "json":
+            import json as _json
+            payload = [
+                {
+                    "id": e.id, "name": e.name, "severity": e.severity, "status": e.status,
+                    "category": e.category, "cwe": e.cwe, "owasp": e.owasp,
+                    "tags": list(e.tags), "description": e.description
+                } for e in entries
+            ]
+            print(_json.dumps({"total_catalog": 98, "displayed": len(payload), "entries": payload}, indent=2))
+            return True
+        # Human-friendly grouped table
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for e in entries:
+            grouped[e.status].append(e)
+        print("\n" + "═"*78)
+        print("  CYGNUS VULNERABILITY CATALOG — Evidence-Based · 98 Families")
+        print("═"*78)
+        if args.severity:
+            print(f"  Severity filter: ≥ {args.severity}")
+        if getattr(args, "vuln_status", "all") != "all":
+            print(f"  Status filter: {args.vuln_status}")
+        if search_term:
+            print(f"  Search: '{search_term}'")
+        print()
+        severity_order = {"Critical":0,"High":1,"Medium":2,"Low":3,"Informational":4}
+        status_labels = {
+            "implemented": "✅ IMPLEMENTED  — automated evidence-backed checks",
+            "manual": "🔍 MANUAL       — requires operator verification",
+            "catalog-only": "📚 CATALOG-ONLY — taxonomy reference, no automation yet",
+        }
+        total_displayed = 0
+        for status in ("implemented", "manual", "catalog-only"):
+            items = sorted(grouped.get(status, []), key=lambda x: (severity_order.get(x.severity,5), x.id))
+            if not items:
+                continue
+            total_displayed += len(items)
+            print(f"\n{status_labels.get(status, status.upper())}  [{len(items)}]")
+            print("─"*78)
+            print(f"  {'ID':<16} {'Severity':<10} {'Name'}")
+            print("  " + "─"*74)
+            for v in items:
+                sev_icon = {"Critical":"🔴","High":"🟠","Medium":"🟡","Low":"🟢","Informational":"🔵"}.get(v.severity,"•")
+                print(f"  {v.id:<16} {sev_icon} {v.severity:<8} {v.name}")
+                print(f"  {'':16}   {v.category} · {v.cwe} · {v.owasp}")
+                print(f"  {'':16}   tags: {', '.join(v.tags)}")
+        totals_s = count_by_severity()
+        totals_st = count_by_status()
+        print("\n" + "─"*78)
+        print(f"Displayed: {total_displayed}/98  |  Severity mix: " + ", ".join(f"{k}:{v}" for k,v in sorted(totals_s.items(), key=lambda x: severity_order.get(x[0],9))))
+        print(f"Status mix: " + ", ".join(f"{k}:{v}" for k,v in totals_st.items()))
+        print(f"Catalog source: cygnus.modules.vulnerability_catalog · evidence required for all findings")
+        print("═"*78 + "\n")
         return True
     if args.init_scope:
         target=args.target_option or args.target
@@ -101,7 +190,7 @@ async def execute(args) -> int:
         print(f"\nOperating mode auto-detected from runtime access: {mode.value}\n",file=sys.stderr)
         if args.profile_only:rendered=_profile_output(profile,mode,args.format)
         else:
-            context=ScanContext(mode,reference,args.active,args.active_authorization_ref,args.timeout,repository_path=args.repository_path)
+            context=ScanContext(mode,reference,args.active,args.active_authorization_ref,args.timeout,repository_path=args.repository_path, min_severity=args.severity)
             report=await ScanEngine().run(profile,context)
             rendered=to_json(report) if args.format=="json" else to_markdown(report)
         if args.output:
