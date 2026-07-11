@@ -44,3 +44,11 @@ TLS capture uses an unverified handshake to collect the leaf certificate digest;
 ## Testing boundary
 
 Mocks cover the major implemented transport families: web, FTP, and an exposed container dashboard. Cloud/provider APIs and real credential paths are not called by tests. The anti-static regression compares intentionally different vulnerable/secure fixtures; two genuinely equivalent targets are allowed to have equal severity counts in production, although their full reports retain target/evidence differences.
+
+## Concurrent execution and fail-closed output validation
+
+- Applicable plugin coroutines run concurrently with `asyncio.gather`; discovery order is preserved in the module ledger and each module still performs its own protocol request.
+- Exceptions remain isolated as `ModuleResult(status="error")` and cannot erase evidence produced by unrelated checks.
+- Every scored finding receives a separate timezone-aware UTC `observed_at`; its stable ID remains derived from name/component/evidence rather than time.
+- The final validator discards a finding before counts and chains if evidence is empty, its timestamp/status is invalid, or its asset type is absent from the fingerprint profile.
+- `AUDIT_REPORT.md` records the exact historical and current fixed-output search. The claimed legacy 96-item implementation is not present in the supplied baseline and no fictional file location is asserted.

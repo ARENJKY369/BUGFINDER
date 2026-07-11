@@ -144,6 +144,7 @@ class Finding:
     severity: str
     confidence: str
     status: str
+    observed_at: str
     component: str
     evidence: list[Evidence]
     root_cause: str
@@ -182,6 +183,7 @@ class ScanReport:
     manual: list[Finding]
     chains: list[dict[str, Any]]
     next_steps: list[str]
+    discarded_findings: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         def convert(value: Any) -> Any:
