@@ -1,4 +1,4 @@
-<p align="center"><img src="cygnus/assets/cygnus-logo.svg" width="150" alt="CYGNUS logo"></p>
+<p align="center"><img src="cygnus/assets/cygnus-logo.png" width="220" alt="CYGNUS swan shield logo"></p>
 <h1 align="center">CYGNUS</h1>
 <p align="center"><strong>Evidence-Based · Verification-Driven Bug Bounty Automation</strong></p>
 

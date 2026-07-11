@@ -22,7 +22,7 @@ cygnus = "cygnus.cli.main:main"
 include = ["cygnus*"]
 
 [tool.setuptools.package-data]
-cygnus = ["data/*.json", "assets/*.svg"]
+cygnus = ["data/*.json", "assets/*.svg", "assets/*.png"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
