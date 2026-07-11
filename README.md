@@ -79,7 +79,7 @@ pip install -e '.[test]'
 Verify the installation:
 
 ```bash
-cygnus --help
+python -m cygnus.cli.main --help
 pytest
 ```
 
@@ -103,14 +103,7 @@ The target host must match an entry in the scope file. For example, scanning `ht
 
 ## Basic command structure
 
-```bash
-cygnus TARGET \
-  --scope scope.txt \
-  --authorized \
-  --authorization-ref 'YOUR-PERMISSION-REFERENCE'
-```
-
-You can also run the same CLI as a Python module:
+Use Python's module runner for a consistent command on Linux, macOS, and Windows:
 
 ```bash
 python -m cygnus.cli.main TARGET \
@@ -119,7 +112,7 @@ python -m cygnus.cli.main TARGET \
   --authorization-ref 'YOUR-PERMISSION-REFERENCE'
 ```
 
-The installed `cygnus` command is the recommended and shorter form.
+The package also installs a shorter `cygnus` command, but all examples below use `python -m cygnus.cli.main` so the invocation is explicit and easy to troubleshoot.
 
 ## Usage examples
 
@@ -128,7 +121,7 @@ The installed `cygnus` command is the recommended and shorter form.
 CYGNUS fingerprints the target first, then runs only the modules applicable to the detected asset types. Manual `-m` module selection is not required.
 
 ```bash
-cygnus https://example.com \
+python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'H1-PROGRAM-2026'
@@ -139,7 +132,7 @@ cygnus https://example.com \
 After adding the API to the scope file, pass it as a normal target. REST, GraphQL, API-documentation, authentication, and web checks are automatically selected or skipped according to fingerprint evidence.
 
 ```bash
-cygnus https://api.example.com \
+python -m cygnus.cli.main https://api.example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'H1-API-SCOPE-2026' \
@@ -151,7 +144,7 @@ cygnus https://api.example.com \
 The current CLI does not have a separate `-m recon` switch. The default scan is already passive and detection-only, and begins with DNS, TCP/banner, TLS, HTTP, and asset fingerprinting.
 
 ```bash
-cygnus example.com \
+python -m cygnus.cli.main example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'RECON-AUTH-2026' \
@@ -163,7 +156,7 @@ cygnus example.com \
 Markdown is the default report format:
 
 ```bash
-cygnus https://example.com \
+python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'TICKET-1001' \
@@ -174,7 +167,7 @@ cygnus https://example.com \
 ### Save a JSON report
 
 ```bash
-cygnus https://example.com \
+python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'TICKET-1001' \
@@ -189,7 +182,7 @@ The current version supports Markdown and JSON. `--format html` and `--depth agg
 Add the authorized local repository path to `scope.txt`, then pass the same path as both the target and `--repository-path`:
 
 ```bash
-cygnus /home/operator/authorized-repo \
+python -m cygnus.cli.main /home/operator/authorized-repo \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'INTERNAL-42' \
@@ -204,7 +197,7 @@ Local source findings appear in the `STATIC/UNCONFIRMED` section and are exclude
 Checks are passive by default. Enabling active modules requires a separate active confirmation in addition to normal authorization:
 
 ```bash
-cygnus https://example.com \
+python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'TICKET-1' \
@@ -220,7 +213,7 @@ The scan is blocked if `--active` is provided without `--active-authorized`.
 In an interactive terminal, you may omit `--authorized` and `--authorization-ref`:
 
 ```bash
-cygnus https://example.com --scope scope.txt
+python -m cygnus.cli.main https://example.com --scope scope.txt
 ```
 
 CYGNUS prints its banner and requests confirmation and a scope reference at the authorization gate. Use explicit flags in CI/CD or other non-interactive environments.
@@ -228,7 +221,7 @@ CYGNUS prints its banner and requests confirmation and a scope reference at the 
 ### View supported options and asset types
 
 ```bash
-cygnus --help
+python -m cygnus.cli.main --help
 ```
 
 The current CLI does not provide a `--list-assets` option. Supported asset types are defined by the `AssetType` enum in `cygnus/core/models.py`, and detection is automatic—the operator does not manually force an asset type.
