@@ -36,16 +36,6 @@ class ScanEngine:
                 discarded.append(f"{finding.id}: {reason}")
             else:
                 findings.append(finding)
-        # Severity filtering (minimum severity threshold)
-        if ctx.min_severity:
-            threshold = SEVERITY_ORDER.get(ctx.min_severity, 0)
-            filtered = []
-            for f in findings:
-                if SEVERITY_ORDER.get(f.severity, 0) >= threshold:
-                    filtered.append(f)
-                else:
-                    discarded.append(f"{f.id}: filtered by --severity {ctx.min_severity} (found {f.severity})")
-            findings = filtered
         confirmed = [item for item in findings if item.status == "CONFIRMED"]
         manual = [item for item in findings if item.status != "CONFIRMED"]
         chains = self._chains(confirmed)
