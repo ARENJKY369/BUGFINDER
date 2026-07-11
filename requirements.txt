@@ -1,0 +1,2 @@
+# Installs CYGNUS in editable mode with its test dependencies.
+-e .[test]

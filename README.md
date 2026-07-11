@@ -69,12 +69,14 @@ py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-Install the project and test dependencies:
+Install the project and test dependencies from `requirements.txt`:
 
 ```bash
 python -m pip install --upgrade pip
-pip install -e '.[test]'
+python -m pip install -r requirements.txt
 ```
+
+The requirements file installs CYGNUS in editable mode together with the test dependencies declared by the project.
 
 Verify the installation:
 
@@ -83,7 +85,7 @@ python -m cygnus.cli.main --help
 pytest
 ```
 
-`pip install -e '.[test]'` installs CYGNUS in editable mode and makes the `cygnus` terminal command available. When returning to the project, you do not need to reinstall the dependencies; simply reactivate `.venv`.
+`python -m pip install -r requirements.txt` installs CYGNUS in editable mode and makes the `cygnus` terminal command available. When returning to the project, you do not need to reinstall the dependencies; simply reactivate `.venv`.
 
 ## Authorization and scope setup
 
