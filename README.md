@@ -108,7 +108,7 @@ The target host must match an entry in the scope file. For example, scanning `ht
 An authorization reference is **your record of permission**, not a value supplied by CYGNUS or its developers. It helps identify why you are allowed to scan the target. Examples include:
 
 - A bug-bounty program name or public program URL
-- An internal security ticket such as `SEC-1234`
+- An internal security ticket such as `YOUR-PERMISSION-REFERENCE`
 - A penetration-test statement-of-work identifier
 - A written approval or change-request identifier
 
@@ -128,7 +128,7 @@ CYGNUS will display prompts similar to:
 
 ```text
 Authorization gate: do you have explicit permission for TARGET? Type 'yes': yes
-Authorization/scope reference: SEC-1234
+Authorization/scope reference: YOUR-PERMISSION-REFERENCE
 ```
 
 The package also installs a shorter `cygnus` command, but all examples below use `python -m cygnus.cli.main` so the invocation is explicit and easy to troubleshoot.
@@ -206,12 +206,12 @@ CI cannot answer interactive prompts, so it must provide the confirmation and re
 python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
-  --authorization-ref 'SEC-1234' \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
   --format json \
   --output report.json
 ```
 
-Replace `SEC-1234` with your real program, ticket, or written-approval reference.
+Replace `YOUR-PERMISSION-REFERENCE` with your real bug-bounty program, ticket, or written-approval reference. Use a separate reference for active authorization where applicable.
 
 ### Explicit active-mode authorization
 
@@ -229,10 +229,10 @@ CYGNUS asks for the normal authorization reference and a second `ACTIVE-AUTHORIZ
 python -m cygnus.cli.main https://example.com \
   --scope scope.txt \
   --authorized \
-  --authorization-ref 'SEC-1234' \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
   --active \
   --active-authorized \
-  --active-authorization-ref 'SEC-1234-ACTIVE'
+  --active-authorization-ref 'YOUR-ACTIVE-PERMISSION-REFERENCE'
 ```
 
 The scan is blocked if the normal authorization/reference or separate active confirmation is missing.
