@@ -46,7 +46,12 @@ A plugin is a class in `cygnus/modules/<category>/checks.py` exposing `name`, `a
 
 ## Installation
 
-CYGNUS requires **Python 3.11 or newer**. First, clone or download the repository and enter the project directory.
+CYGNUS supports **Python 3.11 or newer**, with an explicit **Python 3.14.1** compatibility target. First, confirm the interpreter version, then clone or download the repository and enter the project directory.
+
+```bash
+python3.14 --version
+# Expected for the exact requested runtime: Python 3.14.1
+```
 
 ```bash
 git clone https://github.com/ARENJKY369/BUGFINDER.git
@@ -58,16 +63,22 @@ cd BUGFINDER
 Create and activate a virtual environment:
 
 ```bash
-python3 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
+python --version
 ```
+
+If `python3.14` is not installed, install Python 3.14.1 through your operating system or the official Python distribution first. Inside the activated environment, `python --version` should report `Python 3.14.1`.
 
 ### Windows PowerShell
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
+python --version
 ```
+
+On Windows, `py -0p` lists installed Python runtimes. Confirm that the selected 3.14 runtime is Python 3.14.1 when exact patch-level matching is required.
 
 Install the project and test dependencies from `requirements.txt`:
 
@@ -77,6 +88,14 @@ python -m pip install -r requirements.txt
 ```
 
 The requirements file installs CYGNUS in editable mode together with the test dependencies declared by the project.
+
+Run the exact Python 3.14.1 compatibility environment with:
+
+```bash
+tox -e py3141
+```
+
+This target first verifies that the interpreter is exactly `3.14.1`, then compiles CYGNUS and runs the complete test suite. `tox -e py311` retains compatibility coverage for existing Python 3.11 installations.
 
 Verify the installation:
 

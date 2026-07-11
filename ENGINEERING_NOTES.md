@@ -62,3 +62,10 @@ Mocks cover the major implemented transport families: web, FTP, and an exposed c
 - HTTP redirects are captured but not automatically followed, preventing a scoped URL from silently redirecting checks to another host.
 - Cookie, authorization, and API-key response headers are redacted in report captures.
 - OpenID and GraphQL checks issue bounded metadata queries only. GraphQL introspection is weak/manual evidence, not a confirmed exploit.
+
+## Python 3.14.1 compatibility
+
+- Package metadata remains `requires-python = ">=3.11"` so existing Python 3.11–3.13 installations are not broken; Python 3.14 is explicitly classified as supported.
+- `tox.ini` defines complete compilation and pytest runs for Python 3.11 and Python 3.14.1. The `py3141` target fails before testing unless the exact interpreter patch version is 3.14.1.
+- The implementation uses public standard-library APIs available across this supported range and avoids removed/deprecated runtime internals.
+- The local Arena runtime is Python 3.11.2, so exact 3.14.1 execution is represented by a fail-closed tox target rather than falsely claimed as locally executed. The GitHub connection rejected workflow-file creation because it lacks workflow permission.
