@@ -9,10 +9,13 @@ from cygnus.core.engine import ScanEngine
 
 
 def test_scope_domains_ips_and_cidr(tmp_path):
-    scope = Scope(["example.com", "*.allowed.test", "127.0.0.0/8"])
+    case_sensitive_repo = tmp_path / "AuthorizedRepo"
+    case_sensitive_repo.mkdir()
+    scope = Scope(["EXAMPLE.COM", "*.Allowed.Test", "127.0.0.0/8", str(case_sensitive_repo)])
     assert scope.permits("https://example.com/path")
     assert scope.permits("api.allowed.test")
     assert scope.permits("127.0.0.1:8080")
+    assert scope.permits(str(case_sensitive_repo))
     assert not scope.permits("evil-example.com")
 
 

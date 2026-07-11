@@ -81,11 +81,27 @@ The requirements file installs CYGNUS in editable mode together with the test de
 Verify the installation:
 
 ```bash
-python -m cygnus.cli.main --help
+python -m cygnus --help
 pytest
 ```
 
 `python -m pip install -r requirements.txt` installs CYGNUS in editable mode and makes the `cygnus` terminal command available. When returning to the project, you do not need to reinstall the dependencies; simply reactivate `.venv`.
+
+## Quick start
+
+Create a scope file without editing it manually:
+
+```bash
+python -m cygnus -t https://example.com --init-scope scope.txt
+```
+
+Then start an interactive authorized scan:
+
+```bash
+python -m cygnus -t https://example.com --scope scope.txt
+```
+
+CYGNUS asks for authorization and its reference before any target access.
 
 ## Authorization and scope setup
 
@@ -121,7 +137,7 @@ You may omit the authorization flags from an interactive command. CYGNUS will th
 The simplest command requires only the target and scope file:
 
 ```bash
-python -m cygnus.cli.main TARGET --scope scope.txt
+python -m cygnus TARGET --scope scope.txt
 ```
 
 CYGNUS will display prompts similar to:
@@ -131,7 +147,7 @@ Authorization gate: do you have explicit permission for TARGET? Type 'yes': yes
 Authorization/scope reference: YOUR-PERMISSION-REFERENCE
 ```
 
-The package also installs a shorter `cygnus` command, but all examples below use `python -m cygnus.cli.main` so the invocation is explicit and easy to troubleshoot.
+`python -m cygnus` is the recommended cross-platform command. The package also installs the shorter `cygnus` command, and all existing positional-target commands remain compatible.
 
 ## Usage examples
 
@@ -140,7 +156,7 @@ The package also installs a shorter `cygnus` command, but all examples below use
 CYGNUS fingerprints the target first, then runs only the modules applicable to the detected asset types. Manual `-m` module selection is not required.
 
 ```bash
-python -m cygnus.cli.main https://example.com --scope scope.txt
+python -m cygnus https://example.com --scope scope.txt
 ```
 
 ### API target scan
@@ -148,18 +164,19 @@ python -m cygnus.cli.main https://example.com --scope scope.txt
 After adding the API to the scope file, pass it as a normal target. REST, GraphQL, API-documentation, authentication, and web checks are automatically selected or skipped according to fingerprint evidence.
 
 ```bash
-python -m cygnus.cli.main https://api.example.com \
+python -m cygnus https://api.example.com \
   --scope scope.txt \
   --output api-report.md
 ```
 
 ### Domain or reconnaissance-oriented passive scan
 
-The current CLI does not have a separate `-m recon` switch. The default scan is already passive and detection-only, and begins with DNS, TCP/banner, TLS, HTTP, and asset fingerprinting.
+Use `--recon` for fingerprinting only. It performs authorized DNS, TCP/banner, TLS, HTTP, and bounded metadata discovery, but does not run vulnerability check modules.
 
 ```bash
-python -m cygnus.cli.main example.com \
+python -m cygnus -t example.com \
   --scope scope.txt \
+  --recon \
   --timeout 5
 ```
 
@@ -168,7 +185,7 @@ python -m cygnus.cli.main example.com \
 Markdown is the default report format:
 
 ```bash
-python -m cygnus.cli.main https://example.com \
+python -m cygnus https://example.com \
   --scope scope.txt \
   --format markdown \
   --output report.md
@@ -177,7 +194,7 @@ python -m cygnus.cli.main https://example.com \
 ### Save a JSON report
 
 ```bash
-python -m cygnus.cli.main https://example.com \
+python -m cygnus https://example.com \
   --scope scope.txt \
   --format json \
   --output report.json
@@ -190,7 +207,7 @@ The current version supports Markdown and JSON. `--format html` and `--depth agg
 Add the authorized local repository path to `scope.txt`, then pass the same path as both the target and `--repository-path`:
 
 ```bash
-python -m cygnus.cli.main /home/operator/authorized-repo \
+python -m cygnus /home/operator/authorized-repo \
   --scope scope.txt \
   --repository-path /home/operator/authorized-repo \
   --output repository-report.md
@@ -203,7 +220,7 @@ Local source findings appear in the `STATIC/UNCONFIRMED` section and are exclude
 CI cannot answer interactive prompts, so it must provide the confirmation and reference explicitly:
 
 ```bash
-python -m cygnus.cli.main https://example.com \
+python -m cygnus https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
@@ -218,7 +235,7 @@ Replace `YOUR-PERMISSION-REFERENCE` with your real bug-bounty program, ticket, o
 Checks are passive by default. Enabling active modules requires a separate active confirmation in addition to normal authorization. In an interactive terminal, use:
 
 ```bash
-python -m cygnus.cli.main https://example.com \
+python -m cygnus https://example.com \
   --scope scope.txt \
   --active
 ```
@@ -226,7 +243,7 @@ python -m cygnus.cli.main https://example.com \
 CYGNUS asks for the normal authorization reference and a second `ACTIVE-AUTHORIZED` confirmation. For non-interactive automation, all active authorization flags must be explicit:
 
 ```bash
-python -m cygnus.cli.main https://example.com \
+python -m cygnus https://example.com \
   --scope scope.txt \
   --authorized \
   --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
@@ -240,10 +257,17 @@ The scan is blocked if the normal authorization/reference or separate active con
 ### View supported options and asset types
 
 ```bash
-python -m cygnus.cli.main --help
+python -m cygnus --help
 ```
 
-The current CLI does not provide a `--list-assets` option. Supported asset types are defined by the `AssetType` enum in `cygnus/core/models.py`, and detection is automatic—the operator does not manually force an asset type.
+List all recognized asset types or dynamically discovered check plugins without starting a scan:
+
+```bash
+python -m cygnus --list-assets
+python -m cygnus --list-modules
+```
+
+Detection remains automatic—the operator does not manually force an asset type.
 
 ## Important command differences
 
@@ -251,28 +275,27 @@ The following example flags are **not** part of the current CYGNUS CLI:
 
 ```text
 -m api
--m recon
 --depth aggressive
 --format html
---list-assets
 ```
 
 Their current equivalents are:
 
 - **API scan:** Pass the API URL as a normal target; modules are selected automatically.
-- **Recon:** The default passive scan begins with fingerprinting.
+- **Recon:** Use the supported `--recon` flag for a fingerprint-only run.
 - **Aggressive mode:** This is intentionally unavailable; gated active checks use `--active` plus a second confirmation.
 - **HTML report:** Generate Markdown or JSON and use a trusted external renderer.
-- **Asset list:** Review the `AssetType` enum; types detected at runtime are shown in the report header.
+- **Asset list:** Use `python -m cygnus --list-assets`; detected types are also shown in every report.
 
 ## Implemented verification categories
 
-- **Web/API:** browser headers, untrusted-origin CORS, harmless reflected marker, public admin/API-documentation indicator.
+- **Web/API:** browser headers, untrusted-origin CORS, harmless reflected marker, public admin/API-documentation indicators, bounded OpenAPI discovery, and GraphQL introspection evidence.
 - **SSH/FTP/RDP/email/network:** protocol banner/config capture and exact product/version correlation against the local NVD-derived cache. FTP anonymous access is detected only when advertised; no login is submitted.
 - **Cloud/storage:** unauthenticated object-list response detection. Authenticated policy checks use only future operator-provided credentials; CYGNUS never discovers credentials itself.
 - **Kubernetes/Docker:** unauthenticated identity endpoint detection (`/version`, `/_ping`) only; no control-plane operation.
 - **CMS/CRM/ERP:** published exact product/version match against the cache, routed to manual verification because backports can invalidate banner-only conclusions.
 - **Git/CI/CD/package registries:** public interface classification plus redacted secret patterns in an explicitly operator-provided local repository.
+- **OAuth/SSO:** OpenID discovery metadata policy checks, including insecure issuers and advertised unsigned-token support.
 - **IoT/network devices:** default-credential *indicators* only. No credentials are attempted.
 
 The local cache at `cygnus/data/cve_cache.json` identifies its NIST NVD API source, per-CVE NVD links, and last-updated date. It is intentionally small, so a cache miss means “not matched,” never “not vulnerable.”

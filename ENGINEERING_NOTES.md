@@ -52,3 +52,13 @@ Mocks cover the major implemented transport families: web, FTP, and an exposed c
 - Every scored finding receives a separate timezone-aware UTC `observed_at`; its stable ID remains derived from name/component/evidence rather than time.
 - The final validator discards a finding before counts and chains if evidence is empty, its timestamp/status is invalid, or its asset type is absent from the fingerprint profile.
 - `AUDIT_REPORT.md` records the exact historical and current fixed-output search. The claimed legacy 96-item implementation is not present in the supplied baseline and no fictional file location is asserted.
+
+## v3.3 usability and analysis boundaries
+
+- `python -m cygnus`, positional targets, and `-t/--target` are equivalent; legacy commands remain compatible.
+- `--init-scope` only writes the normalized supplied target and refuses to overwrite an existing file. It performs no network access and does not grant authorization by itself.
+- `--recon` still requires authorization and scope, then stops after evidence-bearing fingerprinting.
+- `--list-assets` and `--list-modules` are local introspection utilities and do not access a target.
+- HTTP redirects are captured but not automatically followed, preventing a scoped URL from silently redirecting checks to another host.
+- Cookie, authorization, and API-key response headers are redacted in report captures.
+- OpenID and GraphQL checks issue bounded metadata queries only. GraphQL introspection is weak/manual evidence, not a confirmed exploit.

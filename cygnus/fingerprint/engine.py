@@ -62,6 +62,8 @@ class Fingerprinter:
                         add(AssetType.WEB_APPLICATION, ev)
                 if "application/json" in content_type or body_lower.lstrip().startswith(("{", "[")):
                     add(AssetType.API, ev)
+                if "graphql" in parsed.path.lower():
+                    add(AssetType.GRAPHQL, Evidence("url-signature", "GraphQL path signature matched", parsed.path, request=f"GET {normalized}"))
                 host_lower = host.lower()
                 if any(marker in host_lower for marker in ("s3.amazonaws.com", ".s3.", "blob.core.windows.net", "storage.googleapis.com")):
                     add(AssetType.CLOUD, Evidence("hostname-signature", "Cloud storage hostname matched", host, request=f"DNS/HTTP {host}"))
@@ -84,15 +86,29 @@ class Fingerprinter:
                         add(asset_type, Evidence("http-signature", f"Matched {asset_type.value} signature", matched, request=f"GET {normalized}"))
             except Exception as exc:
                 signals["http_error"] = f"{type(exc).__name__}: {exc}"
-            # Discovery documents are captured as fingerprint signals, not findings.
+            # Bounded read-only discovery improves classification without crawling.
             base = f"{parsed.scheme}://{parsed.netloc}"
-            for label, path in (("robots", "/robots.txt"), ("security_txt", "/.well-known/security.txt")):
+            discovery_paths = (
+                ("robots", "/robots.txt"),
+                ("security_txt", "/.well-known/security.txt"),
+                ("openid", "/.well-known/openid-configuration"),
+                ("openapi", "/openapi.json"),
+            )
+            async def discover(label: str, path: str):
                 try:
-                    discovery = await http_request(base + path, self.timeout)
-                    if discovery.status < 400 and discovery.text.strip():
-                        signals[label] = {"status": discovery.status, "body": discovery.text[:2048]}
+                    return label, path, await http_request(base + path, self.timeout)
                 except Exception:
-                    pass
+                    return label, path, None
+            for label, path, discovery in await asyncio.gather(*(discover(*item) for item in discovery_paths)):
+                if not discovery or discovery.status >= 400 or not discovery.text.strip():
+                    continue
+                signals[label] = {"status": discovery.status, "body": discovery.text[:2048]}
+                lower = discovery.text.lower()
+                dev = Evidence("http-discovery", f"{path} returned recognizable metadata", discovery.capture(), request=f"GET {base + path}")
+                if label == "openid" and '"issuer"' in lower:
+                    add(AssetType.OAUTH_SSO, dev); add(AssetType.IDENTITY_PROVIDER, dev); add(AssetType.AUTH, dev)
+                if label == "openapi" and any(marker in lower for marker in ('"openapi"', '"swagger"')):
+                    add(AssetType.API, dev); add(AssetType.API_DOCS, dev)
 
         port = explicit_port or (443 if parsed.scheme == "https" else 80)
         protocol_type = {"ftp": AssetType.FTP, "sftp": AssetType.FTP, "ssh": AssetType.SSH, "rdp": AssetType.RDP, "vpn": AssetType.VPN}.get(parsed.scheme, PORT_TYPES.get(port))

@@ -109,5 +109,38 @@ class UnauthenticatedAdminIndicator:
             "Restrict the interface by authentication and network policy if it is not intentionally public.", impact="limited", tags={"public-interface"},
         )]
 
+class OpenAPIObjectAuthorizationSurface:
+    name = "web.openapi_object_authorization"
+    applies_to = frozenset({AssetType.API_DOCS})
+    requires_active = False
 
-MODULES = [SecurityHeaders(), CorsPolicy(), ReflectionMarker(), ObjectAuthorizationIndicator(), UnauthenticatedAdminIndicator()]
+    async def run(self, target: AssetProfile, ctx: ScanContext) -> list[FindingCandidate]:
+        import json
+        from urllib.parse import urljoin
+        url = urljoin(target.normalized_target, "/openapi.json")
+        response = await http_request(url, ctx.timeout)
+        if response.status != 200:
+            return []
+        try:
+            document = json.loads(response.text)
+        except ValueError:
+            return []
+        for path, definition in document.get("paths", {}).items():
+            if "{" not in path or not isinstance(definition, dict):
+                continue
+            for method in ("get", "post", "put", "patch", "delete"):
+                operation = definition.get(method)
+                if isinstance(operation, dict) and operation.get("security", "inherited") == []:
+                    capture = response.capture() + f"\nMatched operation: {method.upper()} {path}; security: []"
+                    return [FindingCandidate(
+                        "Object-level authorization review point declared by OpenAPI", AssetType.API_DOCS, url,
+                        [Evidence("http-response", "Object-reference operation explicitly has no OpenAPI security requirement", capture, request=f"GET {url}", strength="weak")],
+                        "The API contract explicitly marks an object-reference operation with an empty security requirement.",
+                        "This is not claimed as IDOR. Using authorized test identities, verify server-side ownership and role enforcement.",
+                        "Require authentication in the contract and enforce object-level authorization on every operation.",
+                        impact="high", tags={"idor-indicator", "public-interface"},
+                    )]
+        return []
+
+
+MODULES = [SecurityHeaders(), CorsPolicy(), ReflectionMarker(), ObjectAuthorizationIndicator(), UnauthenticatedAdminIndicator(), OpenAPIObjectAuthorizationSurface()]
