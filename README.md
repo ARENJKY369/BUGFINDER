@@ -44,20 +44,89 @@ operator / CLI
 
 A plugin is a class in `cygnus/modules/<category>/checks.py` exposing `name`, `applies_to`, `requires_active`, and async `run(profile, context)`. Discovery is automatic; adding a folder does not change the engine or report schema.
 
-## Install
+## Installation
 
-Python 3.11 or newer is required.
+CYGNUS supports **Python 3.11 or newer**, with an explicit **Python 3.14.1** compatibility target. First, confirm the interpreter version, then clone or download the repository and enter the project directory.
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[test]'
+python3.14 --version
+# Expected for the exact requested runtime: Python 3.14.1
+```
+
+```bash
+git clone https://github.com/ARENJKY369/BUGFINDER.git
+cd BUGFINDER
+```
+
+### Linux / macOS
+
+Create and activate a virtual environment:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python --version
+```
+
+If `python3.14` is not installed, install Python 3.14.1 through your operating system or the official Python distribution first. Inside the activated environment, `python --version` should report `Python 3.14.1`.
+
+### Windows PowerShell
+
+```powershell
+py -3.14 -m venv .venv
+.venv\Scripts\Activate.ps1
+python --version
+```
+
+On Windows, `py -0p` lists installed Python runtimes. Confirm that the selected 3.14 runtime is Python 3.14.1 when exact patch-level matching is required.
+
+Install the project and test dependencies from `requirements.txt`:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The requirements file installs CYGNUS in editable mode together with the test dependencies declared by the project.
+
+Run the exact Python 3.14.1 compatibility environment with:
+
+```bash
+tox -e py3141
+```
+
+This target first verifies that the interpreter is exactly `3.14.1`, then compiles CYGNUS and runs the complete test suite. `tox -e py311` retains compatibility coverage for existing Python 3.11 installations.
+
+Verify the installation:
+
+```bash
+python -m cygnus --help
 pytest
 ```
 
-## Scope and usage
+`python -m pip install -r requirements.txt` installs CYGNUS in editable mode and makes the `cygnus` terminal command available. When returning to the project, you do not need to reinstall the dependencies; simply reactivate `.venv`.
 
-One allowlist item per line; blank lines and `#` comments are ignored. Exact domains, wildcard subdomains, IP addresses, CIDRs, and local paths are accepted.
+## Quick start
+
+Create a scope file without editing it manually:
+
+```bash
+python -m cygnus -t https://example.com --init-scope scope.txt
+```
+
+Then start an interactive authorized scan:
+
+```bash
+python -m cygnus -t https://example.com --scope scope.txt
+```
+
+CYGNUS asks for authorization and its reference before any target access.
+
+## Authorization and scope setup
+
+> Run CYGNUS only against an asset you own, an in-scope bug-bounty target, or a target for which you have written permission. Every scan requires an authorization reference and a scope allowlist.
+
+Create `scope.txt` in the project directory and place one authorized asset on each line. Blank lines and `#` comments are ignored. Exact domains, wildcard subdomains, IP addresses, CIDRs, and local repository paths are supported.
 
 ```text
 # scope.txt
@@ -67,38 +136,185 @@ example.com
 /home/operator/authorized-repo
 ```
 
-Non-interactive passive scan:
+The target host must match an entry in the scope file. For example, scanning `https://api.example.com` requires either `api.example.com` or a matching wildcard entry in scope.
+
+## What is an authorization reference?
+
+An authorization reference is **your record of permission**, not a value supplied by CYGNUS or its developers. It helps identify why you are allowed to scan the target. Examples include:
+
+- A bug-bounty program name or public program URL
+- An internal security ticket such as `YOUR-PERMISSION-REFERENCE`
+- A penetration-test statement-of-work identifier
+- A written approval or change-request identifier
+
+Do not place passwords, API keys, access tokens, or other secrets in this field.
+
+You may omit the authorization flags from an interactive command. CYGNUS will then ask whether you have permission and prompt for the reference before making network requests. The reference itself cannot be bypassed because it is part of the mandatory audit trail.
+
+## Basic interactive usage
+
+The simplest command requires only the target and scope file:
 
 ```bash
-cygnus https://example.com \
+python -m cygnus TARGET --scope scope.txt
+```
+
+CYGNUS will display prompts similar to:
+
+```text
+Authorization gate: do you have explicit permission for TARGET? Type 'yes': yes
+Authorization/scope reference: YOUR-PERMISSION-REFERENCE
+```
+
+`python -m cygnus` is the recommended cross-platform command. The package also installs the shorter `cygnus` command, and all existing positional-target commands remain compatible.
+
+## Usage examples
+
+### Full asset-aware passive scan
+
+CYGNUS fingerprints the target first, then runs only the modules applicable to the detected asset types. Manual `-m` module selection is not required.
+
+```bash
+python -m cygnus https://example.com --scope scope.txt
+```
+
+### API target scan
+
+After adding the API to the scope file, pass it as a normal target. REST, GraphQL, API-documentation, authentication, and web checks are automatically selected or skipped according to fingerprint evidence.
+
+```bash
+python -m cygnus https://api.example.com \
   --scope scope.txt \
-  --authorized \
-  --authorization-ref 'H1-PROGRAM-2026' \
+  --output api-report.md
+```
+
+### Domain or reconnaissance-oriented passive scan
+
+Use `--recon` for fingerprinting only. It performs authorized DNS, TCP/banner, TLS, HTTP, and bounded metadata discovery, but does not run vulnerability check modules.
+
+```bash
+python -m cygnus -t example.com \
+  --scope scope.txt \
+  --recon \
+  --timeout 5
+```
+
+### Save a Markdown report
+
+Markdown is the default report format:
+
+```bash
+python -m cygnus https://example.com \
+  --scope scope.txt \
+  --format markdown \
   --output report.md
 ```
 
-Interactive terminals may omit `--authorized` and the reference; CYGNUS prints its banner and asks at the gate. CI should pass explicit flags. JSON output is available with `--format json`. An operator-provided repository can be inspected without network access:
+### Save a JSON report
 
 ```bash
-cygnus /home/operator/authorized-repo --scope scope.txt --authorized \
-  --authorization-ref INTERNAL-42 --repository-path /home/operator/authorized-repo
+python -m cygnus https://example.com \
+  --scope scope.txt \
+  --format json \
+  --output report.json
 ```
 
-The second active gate is deliberately separate:
+The current version supports Markdown and JSON. `--format html` and `--depth aggressive` are not implemented options, so this README does not advertise them as supported commands.
+
+### Offline/local repository scan
+
+Add the authorized local repository path to `scope.txt`, then pass the same path as both the target and `--repository-path`:
 
 ```bash
-cygnus https://example.com --scope scope.txt --authorized --authorization-ref TICKET-1 \
-  --active --active-authorized --active-authorization-ref TICKET-1-ACTIVE
+python -m cygnus /home/operator/authorized-repo \
+  --scope scope.txt \
+  --repository-path /home/operator/authorized-repo \
+  --output repository-report.md
 ```
+
+Local source findings appear in the `STATIC/UNCONFIRMED` section and are excluded from confirmed severity totals. The interactive authorization prompt still appears for local scans.
+
+### Non-interactive or CI usage
+
+CI cannot answer interactive prompts, so it must provide the confirmation and reference explicitly:
+
+```bash
+python -m cygnus https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
+  --format json \
+  --output report.json
+```
+
+Replace `YOUR-PERMISSION-REFERENCE` with your real bug-bounty program, ticket, or written-approval reference. Use a separate reference for active authorization where applicable.
+
+### Explicit active-mode authorization
+
+Checks are passive by default. Enabling active modules requires a separate active confirmation in addition to normal authorization. In an interactive terminal, use:
+
+```bash
+python -m cygnus https://example.com \
+  --scope scope.txt \
+  --active
+```
+
+CYGNUS asks for the normal authorization reference and a second `ACTIVE-AUTHORIZED` confirmation. For non-interactive automation, all active authorization flags must be explicit:
+
+```bash
+python -m cygnus https://example.com \
+  --scope scope.txt \
+  --authorized \
+  --authorization-ref 'YOUR-PERMISSION-REFERENCE' \
+  --active \
+  --active-authorized \
+  --active-authorization-ref 'YOUR-ACTIVE-PERMISSION-REFERENCE'
+```
+
+The scan is blocked if the normal authorization/reference or separate active confirmation is missing.
+
+### View supported options and asset types
+
+```bash
+python -m cygnus --help
+```
+
+List all recognized asset types or dynamically discovered check plugins without starting a scan:
+
+```bash
+python -m cygnus --list-assets
+python -m cygnus --list-modules
+```
+
+Detection remains automatic—the operator does not manually force an asset type.
+
+## Important command differences
+
+The following example flags are **not** part of the current CYGNUS CLI:
+
+```text
+-m api
+--depth aggressive
+--format html
+```
+
+Their current equivalents are:
+
+- **API scan:** Pass the API URL as a normal target; modules are selected automatically.
+- **Recon:** Use the supported `--recon` flag for a fingerprint-only run.
+- **Aggressive mode:** This is intentionally unavailable; gated active checks use `--active` plus a second confirmation.
+- **HTML report:** Generate Markdown or JSON and use a trusted external renderer.
+- **Asset list:** Use `python -m cygnus --list-assets`; detected types are also shown in every report.
 
 ## Implemented verification categories
 
-- **Web/API:** browser headers, untrusted-origin CORS, harmless reflected marker, public admin/API-documentation indicator.
+- **Web/API:** browser headers, untrusted-origin CORS, harmless reflected marker, public admin/API-documentation indicators, bounded OpenAPI discovery, and GraphQL introspection evidence.
 - **SSH/FTP/RDP/email/network:** protocol banner/config capture and exact product/version correlation against the local NVD-derived cache. FTP anonymous access is detected only when advertised; no login is submitted.
 - **Cloud/storage:** unauthenticated object-list response detection. Authenticated policy checks use only future operator-provided credentials; CYGNUS never discovers credentials itself.
 - **Kubernetes/Docker:** unauthenticated identity endpoint detection (`/version`, `/_ping`) only; no control-plane operation.
 - **CMS/CRM/ERP:** published exact product/version match against the cache, routed to manual verification because backports can invalidate banner-only conclusions.
 - **Git/CI/CD/package registries:** public interface classification plus redacted secret patterns in an explicitly operator-provided local repository.
+- **OAuth/SSO:** OpenID discovery metadata policy checks, including insecure issuers and advertised unsigned-token support.
 - **IoT/network devices:** default-credential *indicators* only. No credentials are attempted.
 
 The local cache at `cygnus/data/cve_cache.json` identifies its NIST NVD API source, per-CVE NVD links, and last-updated date. It is intentionally small, so a cache miss means “not matched,” never “not vulnerable.”
@@ -110,3 +326,11 @@ Confirmed counts contain only live, evidence-backed results that pass confidence
 ## Tests
 
 The integration suite starts local vulnerable and secure HTTP, FTP, and Kubernetes-dashboard mocks. It asserts classification, explicit plugin skips, finding disappearance after secure reconfiguration, report differences, and a regression signature preventing the historical static-output failure.
+
+## Finding output invariants
+
+Each finding includes a stable evidence ID, detected asset type, computed severity/confidence, timezone-aware UTC `observed_at`, exact component, captured evidence, root cause, exploitation vector, remediation, status, and optional locally cited CVE metadata. A final fail-closed pass removes findings with empty evidence, invalid timestamps/status, or asset tags not present in the fingerprint profile before severity totals or exploit chains are generated.
+
+Applicable check plugins are independent async functions and execute concurrently. Inapplicable plugins remain explicit `skipped` ledger entries; protocol failures are isolated as `error` entries rather than converted into findings.
+
+See [`AUDIT_REPORT.md`](AUDIT_REPORT.md) for the hardcoded-output audit and the live verification replacement map.
